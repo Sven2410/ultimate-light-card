@@ -3,7 +3,7 @@
  * A custom Lovelace card for Home Assistant
  * Supports dimmable, switchable, color temp and RGB lights
  *
- * Version: 1.0.3
+ * Version: 1.0.4
  */
 
 /* ============================================================
@@ -386,7 +386,7 @@ class UltimateLightCard extends HTMLElement {
     this._els.ctSlider.addEventListener("touchstart", (e) => e.stopPropagation());
     this._els.ctSlider.addEventListener("input", (e) => {
       e.stopPropagation();
-      this._interactionLock = Date.now() + 1500;
+      this._interactionLock = Date.now() + 1000;
       clearTimeout(this._ctDebounce);
       this._ctDebounce = setTimeout(() => {
         this._callService("light", "turn_on", {
@@ -398,7 +398,7 @@ class UltimateLightCard extends HTMLElement {
     });
     this._els.ctSlider.addEventListener("change", (e) => {
       e.stopPropagation();
-      this._interactionLock = Date.now() + 1500;
+      this._interactionLock = Date.now() + 1000;
       clearTimeout(this._ctDebounce);
       this._callService("light", "turn_on", {
         entity_id: this._config.entity,
@@ -407,20 +407,32 @@ class UltimateLightCard extends HTMLElement {
       });
     });
 
-    // Color picker — debounced, blocks intermediate input events
+    // Color picker — with focus tracking to prevent update loops
     this._colorDebounce = null;
+    this._colorPickerActive = false;
+    this._lastSentColor = null;
     this._els.colorPicker.addEventListener("click", (e) => e.stopPropagation());
     this._els.colorPicker.addEventListener("touchstart", (e) => e.stopPropagation());
+    this._els.colorPicker.addEventListener("focus", () => {
+      this._colorPickerActive = true;
+    });
+    this._els.colorPicker.addEventListener("blur", () => {
+      this._colorPickerActive = false;
+    });
     this._els.colorPicker.addEventListener("input", (e) => {
-      // Lock updates but do NOT send service call on every input
       e.stopPropagation();
-      this._interactionLock = Date.now() + 1500;
+      this._colorPickerActive = true;
+      this._interactionLock = Date.now() + 1000;
     });
     this._els.colorPicker.addEventListener("change", (e) => {
       e.stopPropagation();
-      this._interactionLock = Date.now() + 1500;
-      clearTimeout(this._colorDebounce);
       const hex = e.target.value;
+      // Skip if this is the same color we already sent (prevents loops)
+      if (hex === this._lastSentColor) return;
+      this._lastSentColor = hex;
+      this._interactionLock = Date.now() + 1000;
+      this._colorPickerActive = false;
+      clearTimeout(this._colorDebounce);
       const r = parseInt(hex.slice(1, 3), 16);
       const g = parseInt(hex.slice(3, 5), 16);
       const b = parseInt(hex.slice(5, 7), 16);
@@ -558,7 +570,7 @@ class UltimateLightCard extends HTMLElement {
   }
 
   _setBrightness(pct) {
-    this._interactionLock = Date.now() + 1500;
+    this._interactionLock = Date.now() + 1000;
     this._callService("light", "turn_on", {
       entity_id: this._config.entity,
       brightness: Math.round((pct / 100) * 255),
@@ -645,8 +657,12 @@ class UltimateLightCard extends HTMLElement {
     // Color picker row
     if (isOn && hasColor) {
       this._els.colorRow.style.display = "";
-      if (!locked) {
-        this._els.colorPicker.value = this._getHexColor();
+      if (!locked && !this._colorPickerActive) {
+        const newHex = this._getHexColor();
+        // Only update if value actually changed (prevents triggering change events)
+        if (this._els.colorPicker.value !== newHex) {
+          this._els.colorPicker.value = newHex;
+        }
       }
     } else {
       this._els.colorRow.style.display = "none";
@@ -676,7 +692,7 @@ window.customCards.push({
 });
 
 console.info(
-  "%c ULTIMATE-LIGHT-CARD %c v1.0.3 ",
+  "%c ULTIMATE-LIGHT-CARD %c v1.0.4 ",
   "color:#fff;background:#7c4dff;font-weight:bold;padding:2px 6px;border-radius:4px 0 0 4px;",
   "color:#7c4dff;background:#f0f0f0;font-weight:bold;padding:2px 6px;border-radius:0 4px 4px 0;"
 );
