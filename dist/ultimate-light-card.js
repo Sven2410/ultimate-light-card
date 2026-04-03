@@ -3,7 +3,7 @@
  * A custom Lovelace card for Home Assistant
  * Supports dimmable, switchable, color temp and RGB lights
  *
- * Version: 1.0.2
+ * Version: 1.0.3
  */
 
 /* ============================================================
@@ -386,7 +386,7 @@ class UltimateLightCard extends HTMLElement {
     this._els.ctSlider.addEventListener("touchstart", (e) => e.stopPropagation());
     this._els.ctSlider.addEventListener("input", (e) => {
       e.stopPropagation();
-      this._interactionLock = Date.now() + 3000;
+      this._interactionLock = Date.now() + 500;
       clearTimeout(this._ctDebounce);
       this._ctDebounce = setTimeout(() => {
         this._callService("light", "turn_on", {
@@ -398,7 +398,7 @@ class UltimateLightCard extends HTMLElement {
     });
     this._els.ctSlider.addEventListener("change", (e) => {
       e.stopPropagation();
-      this._interactionLock = Date.now() + 3000;
+      this._interactionLock = Date.now() + 500;
       clearTimeout(this._ctDebounce);
       this._callService("light", "turn_on", {
         entity_id: this._config.entity,
@@ -414,11 +414,11 @@ class UltimateLightCard extends HTMLElement {
     this._els.colorPicker.addEventListener("input", (e) => {
       // Lock updates but do NOT send service call on every input
       e.stopPropagation();
-      this._interactionLock = Date.now() + 3000;
+      this._interactionLock = Date.now() + 500;
     });
     this._els.colorPicker.addEventListener("change", (e) => {
       e.stopPropagation();
-      this._interactionLock = Date.now() + 3000;
+      this._interactionLock = Date.now() + 500;
       clearTimeout(this._colorDebounce);
       const hex = e.target.value;
       const r = parseInt(hex.slice(1, 3), 16);
@@ -558,7 +558,7 @@ class UltimateLightCard extends HTMLElement {
   }
 
   _setBrightness(pct) {
-    this._interactionLock = Date.now() + 3000;
+    this._interactionLock = Date.now() + 500;
     this._callService("light", "turn_on", {
       entity_id: this._config.entity,
       brightness: Math.round((pct / 100) * 255),
@@ -676,7 +676,7 @@ window.customCards.push({
 });
 
 console.info(
-  "%c ULTIMATE-LIGHT-CARD %c v1.0.2 ",
+  "%c ULTIMATE-LIGHT-CARD %c v1.0.3 ",
   "color:#fff;background:#7c4dff;font-weight:bold;padding:2px 6px;border-radius:4px 0 0 4px;",
   "color:#7c4dff;background:#f0f0f0;font-weight:bold;padding:2px 6px;border-radius:0 4px 4px 0;"
 );
