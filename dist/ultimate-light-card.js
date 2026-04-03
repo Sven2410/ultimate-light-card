@@ -3,7 +3,7 @@
  * A custom Lovelace card for Home Assistant
  * Supports dimmable, switchable, color temp and RGB lights
  *
- * Version: 1.0.1
+ * Version: 1.0.2
  */
 
 /* ============================================================
@@ -14,16 +14,26 @@ class UltimateLightCardEditor extends HTMLElement {
     super();
     this._config = {};
     this._hass = null;
+    this._rendered = false;
+    this.attachShadow({ mode: "open" });
   }
 
   set hass(hass) {
     this._hass = hass;
-    this._render();
+    if (!this._rendered) {
+      this._buildDOM();
+    } else {
+      // Only update hass reference on entity picker, do NOT rebuild DOM
+      const ep = this.shadowRoot.querySelector("ha-entity-picker");
+      if (ep) ep.hass = hass;
+    }
   }
 
   setConfig(config) {
     this._config = { ...config };
-    this._render();
+    if (this._rendered) {
+      this._updateValues();
+    }
   }
 
   get _entity() {
@@ -34,19 +44,12 @@ class UltimateLightCardEditor extends HTMLElement {
     return this._config.name || "";
   }
 
-  _render() {
+  _buildDOM() {
     if (!this._hass) return;
-
-    // Only render once, then update values
-    if (!this.shadowRoot) {
-      this.attachShadow({ mode: "open" });
-    }
 
     this.shadowRoot.innerHTML = `
       <style>
-        :host {
-          display: block;
-        }
+        :host { display: block; }
         .editor-row {
           display: flex;
           flex-direction: column;
@@ -65,52 +68,46 @@ class UltimateLightCardEditor extends HTMLElement {
       </style>
       <div class="editor-row">
         <label>Entiteit (alleen lampen)</label>
-        <ha-entity-picker
-          .hass=${this._hass}
-          .value="${this._entity}"
-          .includeDomains=${["light"]}
-          allow-custom-entity
-        ></ha-entity-picker>
+        <ha-entity-picker allow-custom-entity></ha-entity-picker>
       </div>
       <div class="editor-row">
         <label>Naam</label>
-        <ha-textfield
-          .value="${this._name}"
-          placeholder="Bijv. Spots"
-          .configValue=${"name"}
-        ></ha-textfield>
+        <ha-textfield placeholder="Bijv. Spots"></ha-textfield>
       </div>
     `;
 
-    // Wire up entity picker
     const entityPicker = this.shadowRoot.querySelector("ha-entity-picker");
-    if (entityPicker) {
-      entityPicker.hass = this._hass;
-      entityPicker.value = this._entity;
-      entityPicker.includeDomains = ["light"];
-      entityPicker.addEventListener("value-changed", (ev) => {
-        if (!this._config || !this._hass) return;
-        const newEntity = ev.detail.value;
-        if (newEntity !== this._entity) {
-          this._config = { ...this._config, entity: newEntity };
-          this._fireChanged();
-        }
-      });
-    }
+    entityPicker.hass = this._hass;
+    entityPicker.value = this._entity;
+    entityPicker.includeDomains = ["light"];
+    entityPicker.addEventListener("value-changed", (ev) => {
+      if (!this._config || !this._hass) return;
+      const newEntity = ev.detail.value;
+      if (newEntity !== this._entity) {
+        this._config = { ...this._config, entity: newEntity };
+        this._fireChanged();
+      }
+    });
 
-    // Wire up name field
     const nameField = this.shadowRoot.querySelector("ha-textfield");
-    if (nameField) {
-      nameField.value = this._name;
-      nameField.addEventListener("change", (ev) => {
-        if (!this._config || !this._hass) return;
-        const newName = ev.target.value;
-        if (newName !== this._name) {
-          this._config = { ...this._config, name: newName };
-          this._fireChanged();
-        }
-      });
-    }
+    nameField.value = this._name;
+    nameField.addEventListener("change", (ev) => {
+      if (!this._config || !this._hass) return;
+      const newName = ev.target.value;
+      if (newName !== this._name) {
+        this._config = { ...this._config, name: newName };
+        this._fireChanged();
+      }
+    });
+
+    this._rendered = true;
+  }
+
+  _updateValues() {
+    const ep = this.shadowRoot.querySelector("ha-entity-picker");
+    if (ep) ep.value = this._entity;
+    const nf = this.shadowRoot.querySelector("ha-textfield");
+    if (nf) nf.value = this._name;
   }
 
   _fireChanged() {
@@ -383,12 +380,26 @@ class UltimateLightCard extends HTMLElement {
     document.addEventListener("mousemove", this._boundMouseMove);
     document.addEventListener("mouseup", this._boundMouseUp);
 
-    // Color temp slider
+    // Color temp slider — debounced
+    this._ctDebounce = null;
     this._els.ctSlider.addEventListener("click", (e) => e.stopPropagation());
     this._els.ctSlider.addEventListener("touchstart", (e) => e.stopPropagation());
+    this._els.ctSlider.addEventListener("input", (e) => {
+      e.stopPropagation();
+      this._interactionLock = Date.now() + 3000;
+      clearTimeout(this._ctDebounce);
+      this._ctDebounce = setTimeout(() => {
+        this._callService("light", "turn_on", {
+          entity_id: this._config.entity,
+          color_temp_kelvin: parseInt(e.target.value),
+          transition: 0,
+        });
+      }, 300);
+    });
     this._els.ctSlider.addEventListener("change", (e) => {
       e.stopPropagation();
-      this._interactionLock = Date.now() + 2000;
+      this._interactionLock = Date.now() + 3000;
+      clearTimeout(this._ctDebounce);
       this._callService("light", "turn_on", {
         entity_id: this._config.entity,
         color_temp_kelvin: parseInt(e.target.value),
@@ -396,16 +407,23 @@ class UltimateLightCard extends HTMLElement {
       });
     });
 
-    // Color picker
+    // Color picker — debounced, blocks intermediate input events
+    this._colorDebounce = null;
     this._els.colorPicker.addEventListener("click", (e) => e.stopPropagation());
     this._els.colorPicker.addEventListener("touchstart", (e) => e.stopPropagation());
+    this._els.colorPicker.addEventListener("input", (e) => {
+      // Lock updates but do NOT send service call on every input
+      e.stopPropagation();
+      this._interactionLock = Date.now() + 3000;
+    });
     this._els.colorPicker.addEventListener("change", (e) => {
       e.stopPropagation();
+      this._interactionLock = Date.now() + 3000;
+      clearTimeout(this._colorDebounce);
       const hex = e.target.value;
       const r = parseInt(hex.slice(1, 3), 16);
       const g = parseInt(hex.slice(3, 5), 16);
       const b = parseInt(hex.slice(5, 7), 16);
-      this._interactionLock = Date.now() + 2000;
       this._callService("light", "turn_on", {
         entity_id: this._config.entity,
         rgb_color: [r, g, b],
@@ -540,7 +558,7 @@ class UltimateLightCard extends HTMLElement {
   }
 
   _setBrightness(pct) {
-    this._interactionLock = Date.now() + 2000;
+    this._interactionLock = Date.now() + 3000;
     this._callService("light", "turn_on", {
       entity_id: this._config.entity,
       brightness: Math.round((pct / 100) * 255),
@@ -658,7 +676,7 @@ window.customCards.push({
 });
 
 console.info(
-  "%c ULTIMATE-LIGHT-CARD %c v1.0.1 ",
+  "%c ULTIMATE-LIGHT-CARD %c v1.0.2 ",
   "color:#fff;background:#7c4dff;font-weight:bold;padding:2px 6px;border-radius:4px 0 0 4px;",
   "color:#7c4dff;background:#f0f0f0;font-weight:bold;padding:2px 6px;border-radius:0 4px 4px 0;"
 );
