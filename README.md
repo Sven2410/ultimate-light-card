@@ -18,7 +18,7 @@ A custom Lovelace card for Home Assistant that provides an elegant glass-style l
 
 1. Open HACS in Home Assistant
 2. Go to **Frontend** → click the **⋮** menu → **Custom repositories**
-3. Add `https://github.com/JOUW-USERNAME/ultimate-light-card` with category **Dashboard**
+3. Add `https://github.com/Sven2410/ultimate-light-card` with category **Dashboard**
 4. Click **Install**
 5. Refresh your browser (hard refresh: Ctrl+Shift+R)
 
