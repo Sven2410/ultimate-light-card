@@ -3,7 +3,7 @@
  * A custom Lovelace card for Home Assistant
  * Supports dimmable, switchable, color temp and RGB lights
  *
- * Version: 1.0.0
+ * Version: 1.0.1
  */
 
 /* ============================================================
@@ -141,6 +141,7 @@ class UltimateLightCard extends HTMLElement {
     this._boundMouseUp = this._onMouseUp.bind(this);
     this._boundTouchMove = this._onTouchMove.bind(this);
     this._boundTouchEnd = this._onTouchEnd.bind(this);
+    this._interactionLock = 0; // timestamp: ignore HA updates until cooldown
   }
 
   /* --- HA required interface --- */
@@ -387,9 +388,11 @@ class UltimateLightCard extends HTMLElement {
     this._els.ctSlider.addEventListener("touchstart", (e) => e.stopPropagation());
     this._els.ctSlider.addEventListener("change", (e) => {
       e.stopPropagation();
+      this._interactionLock = Date.now() + 2000;
       this._callService("light", "turn_on", {
         entity_id: this._config.entity,
         color_temp_kelvin: parseInt(e.target.value),
+        transition: 0,
       });
     });
 
@@ -402,9 +405,11 @@ class UltimateLightCard extends HTMLElement {
       const r = parseInt(hex.slice(1, 3), 16);
       const g = parseInt(hex.slice(3, 5), 16);
       const b = parseInt(hex.slice(5, 7), 16);
+      this._interactionLock = Date.now() + 2000;
       this._callService("light", "turn_on", {
         entity_id: this._config.entity,
         rgb_color: [r, g, b],
+        transition: 0,
       });
     });
   }
@@ -535,9 +540,11 @@ class UltimateLightCard extends HTMLElement {
   }
 
   _setBrightness(pct) {
+    this._interactionLock = Date.now() + 2000;
     this._callService("light", "turn_on", {
       entity_id: this._config.entity,
       brightness: Math.round((pct / 100) * 255),
+      transition: 0,
     });
   }
 
@@ -582,8 +589,11 @@ class UltimateLightCard extends HTMLElement {
       ? "rgba(255,255,255,0.9)"
       : "rgba(255,255,255,0.35)";
 
+    // Skip visual updates during interaction cooldown (prevents jerky transitions)
+    const locked = Date.now() < this._interactionLock;
+
     // Background
-    if (!this._dragging) {
+    if (!this._dragging && !locked) {
       if (isDimmable && isOn) {
         this._els.mainRow.style.background = `linear-gradient(90deg, rgba(${r},${g},${b},0.55) 0%, rgba(${r},${g},${b},0) ${pct}%, rgba(0,0,0,0) ${pct}%)`;
       } else if (isOn) {
@@ -596,18 +606,20 @@ class UltimateLightCard extends HTMLElement {
     // Color temp row
     if (isOn && hasCT) {
       this._els.ctRow.style.display = "";
-      const ctK =
-        stateObj.attributes.color_temp_kelvin ||
-        4000;
-      const minK =
-        stateObj.attributes.min_color_temp_kelvin ||
-        2000;
-      const maxK =
-        stateObj.attributes.max_color_temp_kelvin ||
-        6500;
-      this._els.ctSlider.min = minK;
-      this._els.ctSlider.max = maxK;
-      this._els.ctSlider.value = ctK;
+      if (!locked) {
+        const ctK =
+          stateObj.attributes.color_temp_kelvin ||
+          4000;
+        const minK =
+          stateObj.attributes.min_color_temp_kelvin ||
+          2000;
+        const maxK =
+          stateObj.attributes.max_color_temp_kelvin ||
+          6500;
+        this._els.ctSlider.min = minK;
+        this._els.ctSlider.max = maxK;
+        this._els.ctSlider.value = ctK;
+      }
     } else {
       this._els.ctRow.style.display = "none";
     }
@@ -615,7 +627,9 @@ class UltimateLightCard extends HTMLElement {
     // Color picker row
     if (isOn && hasColor) {
       this._els.colorRow.style.display = "";
-      this._els.colorPicker.value = this._getHexColor();
+      if (!locked) {
+        this._els.colorPicker.value = this._getHexColor();
+      }
     } else {
       this._els.colorRow.style.display = "none";
     }
@@ -640,11 +654,11 @@ window.customCards.push({
   description:
     "Een veelzijdige lichtkaart met helderheidsslider, kleurtemperatuur en kleurkiezer.",
   preview: true,
-  documentationURL: "https://github.com/JOUW-USERNAME/ultimate-light-card",
+  documentationURL: "https://github.com/Sven2410/ultimate-light-card",
 });
 
 console.info(
-  "%c ULTIMATE-LIGHT-CARD %c v1.0.0 ",
+  "%c ULTIMATE-LIGHT-CARD %c v1.0.1 ",
   "color:#fff;background:#7c4dff;font-weight:bold;padding:2px 6px;border-radius:4px 0 0 4px;",
   "color:#7c4dff;background:#f0f0f0;font-weight:bold;padding:2px 6px;border-radius:0 4px 4px 0;"
 );
