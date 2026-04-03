@@ -386,7 +386,7 @@ class UltimateLightCard extends HTMLElement {
     this._els.ctSlider.addEventListener("touchstart", (e) => e.stopPropagation());
     this._els.ctSlider.addEventListener("input", (e) => {
       e.stopPropagation();
-      this._interactionLock = Date.now() + 1000;
+      this._interactionLock = Date.now() + 1500;
       clearTimeout(this._ctDebounce);
       this._ctDebounce = setTimeout(() => {
         this._callService("light", "turn_on", {
@@ -398,7 +398,7 @@ class UltimateLightCard extends HTMLElement {
     });
     this._els.ctSlider.addEventListener("change", (e) => {
       e.stopPropagation();
-      this._interactionLock = Date.now() + 1000;
+      this._interactionLock = Date.now() + 1500;
       clearTimeout(this._ctDebounce);
       this._callService("light", "turn_on", {
         entity_id: this._config.entity,
@@ -414,11 +414,11 @@ class UltimateLightCard extends HTMLElement {
     this._els.colorPicker.addEventListener("input", (e) => {
       // Lock updates but do NOT send service call on every input
       e.stopPropagation();
-      this._interactionLock = Date.now() + 1000;
+      this._interactionLock = Date.now() + 1500;
     });
     this._els.colorPicker.addEventListener("change", (e) => {
       e.stopPropagation();
-      this._interactionLock = Date.now() + 1000;
+      this._interactionLock = Date.now() + 1500;
       clearTimeout(this._colorDebounce);
       const hex = e.target.value;
       const r = parseInt(hex.slice(1, 3), 16);
@@ -558,7 +558,7 @@ class UltimateLightCard extends HTMLElement {
   }
 
   _setBrightness(pct) {
-    this._interactionLock = Date.now() + 1000;
+    this._interactionLock = Date.now() + 1500;
     this._callService("light", "turn_on", {
       entity_id: this._config.entity,
       brightness: Math.round((pct / 100) * 255),
